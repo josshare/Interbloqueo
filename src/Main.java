@@ -1,6 +1,7 @@
 public class Main {
     public static void main(String[] args) {
-        Agenda agenda = new Agenda();
+        // Accedemos a la instancia del Singleton Agenda
+        Agenda agenda = Agenda.getInstance();
         Thread thread1 = new Thread(agenda, "Thread1");
         Thread thread2 = new Thread(agenda, "Thread2");
 
