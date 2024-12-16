@@ -1,19 +1,19 @@
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Collections;
 
 public class Agenda implements Runnable {
-    private List<Contacto> contactos;
-    private final Object lock1 = new Object();
-    private final Object lock2 = new Object();
-    private static Thread t1 = new Thread();
-    private static Thread t2 = new Thread();
+    private final List<Contacto> contactos;
+    
+    private static Thread t1;
+    private static Thread t2;
     
     // Declaramos una variable estática que contendrá la única instancia de la clase Agenda
-    private static Agenda instance;
+    private static volatile Agenda instance;
     
     // El constructor es privado para evitar que otras clases creen nuevas instancias de Agenda
     private Agenda() {
-        contactos = new ArrayList<>();
+        contactos = Collections.synchronizedList(new ArrayList<Contacto>());
     }
     
     // Este patrón asegura que solo haya una instancia de Agenda en toda la aplicación. 
@@ -27,47 +27,75 @@ public class Agenda implements Runnable {
         }
         return instance;
     }
+   //El método run es el punto de entrada para la ejecución de hilos.
+   //Cuando se inicia un hilo, ejecuta este método que se encarga
+   //de añadir contactos a través de diferentes puntos de entrada.
     @Override
     public void run() {
-        if (Thread.currentThread().getName().equals("Thread1")) {
-            agregarContacto1();
-        } else {
-            agregarContacto2();
+        String threadName = Thread.currentThread().getName();
+        try {
+            switch (threadName) {
+                case "Thread1":
+                    agregarContacto1();
+                    break;
+                case "Thread2":
+                    agregarContacto2();
+                    break;
+                default:
+                    System.err.println("Unknown thread: " + threadName);
+            }
+        } catch (Exception e) {
+            System.err.println("Error in thread " + threadName + ": " + e.getMessage());
         }
     }
 
+    //Punto de entrada para la primera operación del hilo.
+    //Añade un contacto llamado «Juan» a través del mecanismo de recursos compartidos.
     public void agregarContacto1() {
-        use_both_resources("Juan", "juan@email.com", "123456");
+        usar_ambos_recursos("Juan", "juan@email.com", "123456");
     }
 
     public void agregarContacto2() {
-        use_both_resources("Maria", "maria@email.com", "789012");
+        usar_ambos_recursos("Maria", "maria@email.com", "789012");
     }
-
-    public void use_both_resources(String nombre, String email, String telefono) {
-        // Always acquire locks in the same order to prevent deadlock
-        synchronized (lock1) {
-            synchronized (lock2) {
-                agregarContacto(nombre, email, telefono);
-            }
-        }
+    //Creamos un Metodo usar_ambos_recursos() en la que la estructura es una lista
+    /**
+     * Critical section where shared resources are accessed.
+     * This method acts as a gateway for adding contacts, potentially
+     * accessed by multiple threads simultaneously.
+     */
+    public void usar_ambos_recursos(String nombre, String email, String telefono) {
+        agregarContacto(nombre, email, telefono);
     }
 
     public void agregarContacto(String nombre, String email, String telefono) {
-        synchronized (lock1) {
-            synchronized (lock2) {
-                contactos.add(new Contacto(nombre, email, telefono));
-            }
-        }
+        contactos.add(new Contacto(nombre, email, telefono));
     }
 
     public void mostrarContactos() {
-        synchronized (lock2) {
-            synchronized (lock1) {
-                for (Contacto c : contactos) {
-                    System.out.println(c);
-                }
+        synchronized (contactos) {
+            for (Contacto c : contactos) {
+                System.out.println(c);
             }
         }
+    }
+    
+    // Inicializa e inicia dos hilos que se ejecutarán concurrentemente.
+    // Ambos subprocesos comparten el mismo ejecutable (esta instancia de Agenda) pero
+    // operan independientemente para añadir contactos a la agenda.
+    public void startThreads() {
+        t1 = new Thread(this, "Thread1");
+        t2 = new Thread(this, "Thread2");
+        t1.start();
+        t2.start();
+    }
+    
+    //Método de sincronización que asegura que todos los hilos completan su ejecución.
+    //Utiliza Thread.join() para hacer que el hilo principal espere hasta que ambos hilos trabajadores
+    //hayan terminado sus tareas antes de continuar.
+    //@throws InterruptedException si el hilo es interrumpido mientras espera.
+    public void waitForThreads() throws InterruptedException {
+        if (t1 != null) t1.join();
+        if (t2 != null) t2.join();
     }
 }
